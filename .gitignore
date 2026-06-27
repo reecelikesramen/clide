@@ -1,0 +1,4 @@
+# nothing to build — keep the tree clean
+*.swp
+*.bak
+.DS_Store
