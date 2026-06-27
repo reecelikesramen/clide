@@ -136,7 +136,7 @@ if [ -t 2 ]; then
   trap 'cancelled=1; kill $cpid 2>/dev/null' INT
   i=1
   while kill -0 "$cpid" 2>/dev/null; do
-    set -- · ✢ ✻ ✶ ✽
+    set -- · ✻ ✽ ✶ ✳ ✢
     eval "f=\${$i}"
     printf '\r%s%s%s %sthinking · %s  %s(esc cancels)%s' "$C_ACC" "$f" "$C_RST" "$C_DIM" "$model" "$C_DIM" "$C_RST" >&2
     i=$((i % $# + 1))

@@ -196,7 +196,7 @@ and put the caveat in "note". Output nothing but the one JSON line.
         try {
             $job = Start-Job -ScriptBlock { param($a) & claude @a 2>$null } -ArgumentList (, $sargs)
             if ($tty) {
-                $frames = '·','✢','✻','✶','✽'; $k = 0
+                $frames = '·','✻','✽','✶','✳','✢'; $k = 0
                 [Console]::Write("$e[?25l")
                 while ($job.State -eq 'Running') {
                     [Console]::Error.Write("`r$A$($frames[$k])$R ${D}thinking · $model  (esc cancels)$R")
