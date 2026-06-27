@@ -7,7 +7,7 @@
 # Honors:  CLIDE_BASE_URL (where to fetch files), CLIDE_DIR (install location).
 set -eu
 
-BASE_URL="${CLIDE_BASE_URL:-https://holmdahl.io/clide}"   # <-- set to your real host
+BASE_URL="${CLIDE_BASE_URL:-https://raw.githubusercontent.com/reecelikesramen/clide/main}"   # source of truth
 DIR="${CLIDE_DIR:-$HOME/.config/clide}"
 SHELL_OVERRIDE=""
 UNINSTALL=0

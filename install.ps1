@@ -5,7 +5,7 @@
 # Honors: $env:CLIDE_BASE_URL, $env:CLIDE_DIR
 param([switch] $Uninstall)
 
-$BaseUrl = if ($env:CLIDE_BASE_URL) { $env:CLIDE_BASE_URL } else { 'https://holmdahl.io/clide' }  # <-- set host
+$BaseUrl = if ($env:CLIDE_BASE_URL) { $env:CLIDE_BASE_URL } else { 'https://raw.githubusercontent.com/reecelikesramen/clide/main' }  # source of truth
 $Dir     = if ($env:CLIDE_DIR)      { $env:CLIDE_DIR }      else { Join-Path $HOME '.config/clide' }
 $Target  = Join-Path $Dir 'clide.ps1'
 $MarkBeg = '# >>> clide >>>'

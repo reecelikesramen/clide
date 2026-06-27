@@ -52,26 +52,27 @@ It's not flying blind:
 
 ## Install
 
-**From a clone (zsh / bash):**
+**zsh / bash (Linux, macOS):**
 ```sh
-git clone <this-repo> ~/clide
-echo 'source ~/clide/clide.zsh' >> ~/.zshrc     # or clide.bash >> ~/.bashrc
-exec $SHELL
-```
-
-**One-liner (if hosted on a server):**
-```sh
-curl -fsSL https://YOUR-SITE/clide/install.sh | sh   # detects your shell
+curl -fsSL https://holmdahl.io/clide/install.sh | sh   # detects your shell
 # force a shell:  ...| sh -s -- --shell bash      uninstall:  ...| sh -s -- --uninstall
 ```
 
 **PowerShell (Windows, or pwsh anywhere):**
 ```powershell
-irm https://YOUR-SITE/clide/install.ps1 | iex      # or: . path\to\clide.ps1  in your $PROFILE
+irm https://holmdahl.io/clide/install.ps1 | iex
 ```
 
-Requires `claude` (Claude Code) and that you're signed in. The shell version also needs `jq` and
-`perl` (both ship on macOS and most Linux). The PowerShell version needs neither.
+**Or from a clone:**
+```sh
+git clone https://github.com/reecelikesramen/clide ~/clide
+echo 'source ~/clide/clide.zsh' >> ~/.zshrc     # or clide.bash >> ~/.bashrc
+exec $SHELL
+```
+
+The install scripts are served from holmdahl.io; they fetch the function files straight from this
+GitHub repo (`main`). Requires `claude` (Claude Code) and that you're signed in. The shell version
+also needs `jq` and `perl` (both ship on macOS and most Linux). The PowerShell version needs neither.
 
 ## Flags
 
