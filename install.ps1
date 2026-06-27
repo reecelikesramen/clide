@@ -1,6 +1,6 @@
 # clide installer (PowerShell).  Usage:
-#   irm https://YOUR-SITE/clide/install.ps1 | iex
-#   & ([scriptblock]::Create((irm https://YOUR-SITE/clide/install.ps1))) -Uninstall
+#   irm https://holmdahl.io/clide/install.ps1 | iex
+#   & ([scriptblock]::Create((irm https://holmdahl.io/clide/install.ps1))) -Uninstall
 #
 # Honors: $env:CLIDE_BASE_URL, $env:CLIDE_DIR
 param([switch] $Uninstall)

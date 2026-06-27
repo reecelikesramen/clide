@@ -1,6 +1,6 @@
 #!/bin/sh
 # clide installer (zsh + bash).  Usage:
-#   curl -fsSL https://YOUR-SITE/clide/install.sh | sh
+#   curl -fsSL https://holmdahl.io/clide/install.sh | sh
 #   ...| sh -s -- --shell zsh        # force a shell
 #   ...| sh -s -- --uninstall
 #
