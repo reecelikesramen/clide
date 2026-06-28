@@ -33,8 +33,8 @@ function clide {
     # ---- colors (PSStyle on pwsh 7.2+, else ANSI literals) ----
     $e = [char]27
     $A = "$e[38;5;174m"; $D = "$e[38;5;244m"; $ER = "$e[38;5;203m"
-    $OK = "$e[38;5;78m"; $CMD = "$e[38;5;81m"; $R = "$e[0m"
-    if (-not $tty) { $A = $D = $ER = $OK = $CMD = $R = "" }
+    $OK = "$e[38;5;78m"; $CY = "$e[38;5;81m"; $R = "$e[0m"   # $CY not $CMD: PS vars are case-insensitive, $cmd would clobber it
+    if (-not $tty) { $A = $D = $ER = $OK = $CY = $R = "" }
 
     # ---- escalation: exactly `clide code` ----
     if ($Rest.Count -eq 1 -and $Rest[0] -eq 'code') {
@@ -326,11 +326,11 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
         try {
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($cmd)   # editable in the prompt buffer
         } catch {
-            Write-Host "${CMD}> $cmd${R}"
+            Write-Host "${CY}> $cmd${R}"
             Write-Host "${D}(copy above — PSReadLine buffer insert unavailable)${R}"
         }
     } else {
-        Write-Host "${CMD}> $cmd${R}"
+        Write-Host "${CY}> $cmd${R}"
         if ($danger) {
             $ans = Read-Host "${ER}type 'yes' to run${R}"
             if ($ans -eq 'yes') { Invoke-Expression $cmd } else { Write-Host "${D}✗ skipped${R}" }
