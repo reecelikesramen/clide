@@ -81,6 +81,12 @@ uses `PSConsoleReadLine::Insert`.
   prompt, raw output.
 - **`clide.ps1` sets `[Console]::OutputEncoding` to UTF-8 (no BOM) at load** so Windows PowerShell 5.1
   renders the spinner frames/glyphs instead of `?` (its console defaults to the OEM codepage).
+- **`clide.ps1` escapes `"`→`\"` in every claude arg before the native call** (`_qesc`/`$callArgs`).
+  PowerShell's *legacy* native-arg passing (5.1, and 7.x in Legacy mode) strips embedded double quotes,
+  which turned `--json-schema {"...":...}` into invalid JSON (`claude exited 1`). Exactly one PS→native
+  boundary consumes the escaping in every shim shape (claude.exe, or claude.ps1/.cmd → node), so one
+  `\"` level is correct. Skipped when `PSNativeCommandArgumentPassing` is `Standard`/`Windows` (7.3+),
+  which already quotes correctly. Don't pass complex JSON to a native command unescaped on Windows.
 
 ## Working on this
 

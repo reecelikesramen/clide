@@ -221,19 +221,28 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
         [pscustomobject]@{ Out = $outs; Err = $errs; Code = $LASTEXITCODE }
     }
 
+    # PowerShell's legacy native-arg passing (5.1, and 7.x in Legacy mode) strips embedded double
+    # quotes when calling native programs, so --json-schema '{"type":...}' reaches claude as invalid
+    # JSON. Escape " as \" ourselves so the program's argv parser gets literal quotes — unless this
+    # PowerShell already quotes correctly (PSNativeCommandArgumentPassing = Standard/Windows on 7.3+).
+    $napMode = (Get-Variable PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue)
+    $nativeQuotesOk = ($PSVersionTable.PSVersion.Major -ge 7) -and ($napMode -in 'Standard', 'Windows')
+    function _qesc([string] $s) { if ($nativeQuotesOk) { $s } else { $s -replace '"', '\"' } }
+
     # ---- call claude (spinner via job; sync fallback), retrying once if a resume is lost ----
     $out = $null; $stderrText = ''; $code = 0; $cancelled = $false
     for ($attempt = 0; $attempt -lt 2; $attempt++) {
         $sargs = $cargs
         if ($sidMode -eq 'new')        { $sargs = $cargs + @('--session-id', $sid) }
         elseif ($sidMode -eq 'resume') { $sargs = $cargs + @('--resume', $sid) }
+        $callArgs = @($sargs | ForEach-Object { _qesc $_ })   # quote-safe copy for the native call
         if ($verbose -ge 2 -and $attempt -eq 0) {
             [Console]::Error.WriteLine("${D}clide -vv: claude $($sargs -join ' ')${R}")
             [Console]::Error.WriteLine("${D}clide -vv: --- prompt ---`n$fullPrompt${R}")
             [Console]::Error.WriteLine("${D}clide -vv: --- system ---`n$sys${R}")
         }
         try {
-            $job = Start-Job -ScriptBlock $invoke -ArgumentList (, $sargs)
+            $job = Start-Job -ScriptBlock $invoke -ArgumentList (, $callArgs)
             if ($tty) {
                 $frames = '·','✻','✽','✶','✳','✢'; $k = 0
                 [Console]::Write("$e[?25l")
@@ -251,7 +260,7 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
             if (-not $cancelled) { $res = Receive-Job $job; if ($res) { $out = $res.Out; $stderrText = $res.Err; $code = [int]$res.Code } }
             Remove-Job $job -Force
         } catch {
-            if (-not $cancelled) { $res = & $invoke $sargs; $out = $res.Out; $stderrText = $res.Err; $code = [int]$res.Code }
+            if (-not $cancelled) { $res = & $invoke $callArgs; $out = $res.Out; $stderrText = $res.Err; $code = [int]$res.Code }
         }
         if ($verbose -ge 1) { [Console]::Error.WriteLine("${D}clide -v: claude exit=$code, out=$(($out + '').Length)ch, err=$(($stderrText + '').Length)ch${R}") }
         if ($verbose -ge 1 -and $stderrText) { [Console]::Error.WriteLine("${D}clide -v: --- claude stderr ---`n$stderrText${R}") }
