@@ -1,62 +1,45 @@
 # clide
 
-**Ask your terminal in plain English, get the command.**
+Type what you want in plain English, get the shell command.
 
-> Do you forget git commands?
-> A) Yes
-> B) Yes, but I'm too embarrassed to say
-> C) No\*
->
-> \**(lying)*
-
-Same. I've typed `git push --set-upstream origin` wrong enough times to feel something. So I built
-**clide** — a thin wrapper around Claude Code's headless mode that turns a plain-English request into a
-shell command, without opening the full interactive session.
+I forget git flags constantly. `clide` is a small wrapper over Claude Code's headless mode that turns
+a sentence into a command — no full interactive session, no leaving the terminal.
 
 ```
 $ clide list branches by last commit date
-  # → command drops into your prompt, editable — you hit Enter
+  # command drops into your prompt, editable — hit Enter
 $ clide undo my last commit but keep my changes
   $ git reset --soft HEAD~1
   run this? [y/N]
 $ git rebase main 2>&1 | clide fix this
-  # → pipe an error in for context
+  # pipe an error in for context
 ```
 
-**Best part:** if you've got Claude Code installed and you're signed in, it just works — no API key, no
-separate subscription, no per-token billing. It rides your existing login. Works in zsh, bash, and
-PowerShell.
+If you have Claude Code installed and signed in, it just works: no API key, no extra subscription, no
+per-token billing — it uses your existing login. zsh, bash, PowerShell.
 
 ## How it works
 
-clide is **command-first**: almost every request becomes a command (yes, even
-`clide tell me a joke with echo`). It returns one line of JSON behind the scenes and picks one of
+Almost every request becomes a command (even `clide tell me a joke with echo`). clide picks one of
 three modes:
 
-- **suggest** — you should review or edit before running (paths/names to fill in, exploratory, or
-  ambiguous args). The command drops into your shell's input buffer (zsh/pwsh) or history (bash),
-  editable — you press Enter to run it. *This is the "you take the wheel" mode.*
-- **run** — the command is complete and the request is a directive ("fix…", "delete…", "rebase…").
-  clide prints it and asks `[y/N]`, then executes it for you. *This is the "do it for me" mode.*
-- **info** — only for a genuine why/knowledge question with no command form (e.g. *"why did the last
-  3 attempts fail when they looked fine?"*). clide answers in prose and does nothing else.
+- **suggest** — needs your eyes first (a path to fill in, ambiguous args). Drops the command into your
+  input buffer (zsh/pwsh) or history (bash) so you can edit and press Enter.
+- **run** — a directive with a complete command ("fix…", "delete…", "rebase…"). clide prints it, asks
+  `[y/N]`, then runs it.
+- **info** — a real why-question with no command form. clide answers in prose, does nothing else.
 
-The split between **suggest** and **run** is *edit-vs-execute*: suggest hands you the command to
-tweak; run executes it on your confirmation. clide also knows your OS (macOS/Linux) and shell, so
-edits use the right tools (e.g. BSD vs GNU `sed -i`).
+It knows your OS and shell, so it reaches for the right tools (BSD vs GNU `sed -i`). And it has
+context:
 
-It's not flying blind:
-
-- **Shell context, automatically** — your previous command + its exit code, plus anything you
-  **pipe in** (`cmd 2>&1 | clide fix this`).
-- **Tab memory** — it remembers earlier clide runs in the *same terminal tab*, so follow-ups like
-  *"that failed, try the other way"* actually work (details below).
-- **Secret filtering** — a best-effort pass strips tokens / passwords / keys / JWTs before anything
-  leaves your machine. (Best-effort, not airtight — don't pipe in your whole secrets file.)
-- **Works with `sudo`** — for admin tasks it prefixes `sudo` (or `gsudo` on Windows) instead of
-  claiming it can't elevate.
-- **Esc cancels** mid-thought, and `clide code` kicks the whole conversation into an interactive
-  Claude Code session when a one-liner won't cut it.
+- **Shell context** — your last command + its exit code, plus anything you pipe in.
+- **Tab memory** — remembers earlier clide runs in the same tab, so "that failed, try the other way"
+  works (below).
+- **Secret filtering** — best-effort strip of tokens/passwords/keys/JWTs before anything leaves your
+  machine. Not airtight; don't pipe in your secrets file.
+- **sudo** — prefixes `sudo` (or `gsudo` on Windows) for admin tasks instead of refusing to elevate.
+- **Esc** cancels mid-thought. `clide code` kicks the conversation into an interactive Claude Code
+  session when a one-liner won't cut it.
 
 ## Install
 
