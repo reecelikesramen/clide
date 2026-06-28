@@ -58,7 +58,7 @@ clide() {
   fi
 
   # ---- flags ----
-  local model="" effort="" force_mode="" inspect=0 explain=0 autoyes=0 once=0 newsess=0
+  local model="" effort="" force_mode="" inspect=0 explain=0 autoyes=0 once=0 newsess=0 verbose=0
   while [[ "$1" == -* ]]; do
     case "$1" in
       -mh) model=haiku;  shift ;;
@@ -72,6 +72,8 @@ clide() {
       -y)  autoyes=1; shift ;;
       -1|--once) once=1; shift ;;
       -n|--new)  newsess=1; shift ;;
+      -v)  (( verbose < 1 )) && verbose=1; shift ;;
+      -vv) verbose=2; shift ;;
       -h|--help)
         print -- "${A}clide${R} — turn a prompt into a shell command"
         print -- "  ${D}clide <prompt>${R}        auto: passive→suggest (inject), active→run (confirm)"
@@ -83,6 +85,7 @@ clide() {
         print -- "  ${D}-y${R}                    auto-yes in run mode (destructive still gated)"
         print -- "  ${D}-1 | --once${R}           stateless one-off (ignore tab memory)"
         print -- "  ${D}-n | --new${R}            fresh tab session, then run (bare -n resets)"
+        print -- "  ${D}-v | -vv${R}              verbose | very verbose (diagnose failures)"
         print -- "  ${D}clide code${R}            elevate tab context into interactive claude"
         print -- "  ${D}cmd 2>&1 | clide …${R}    pipe output/errors in as context"
         return 0 ;;
@@ -138,7 +141,7 @@ clide() {
     CLIDE_FORCE_MODE="$force_mode" CLIDE_INSPECT="$inspect" CLIDE_EXPLAIN="$explain" \
     CLIDE_LAST_CMD="$last_cmd" CLIDE_LAST_RC="$_last_rc" CLIDE_INTERRUPTED="$interrupted" \
     CLIDE_SID="$sid" CLIDE_SID_MODE="$sid_mode" CLIDE_QUIET_ERR="$1" \
-    CLIDE_SHELL=zsh \
+    CLIDE_SHELL=zsh CLIDE_VERBOSE="$verbose" \
     command sh "$core"
   }
 

@@ -10,6 +10,10 @@
 #   clide -h                 help
 #   <something> | clide …    pipe output/errors in as context
 
+# Render the spinner frames + glyphs as UTF-8. Windows PowerShell 5.1 defaults the console to the OEM
+# codepage, which turns ✻ ✽ ✶ ✳ ✢ into "?" (Claude Code's own UI works because it sets this too).
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
+
 # ---- per-tab session memory (keyed by this pwsh process id) ----
 $script:ClideSdir = Join-Path ([System.IO.Path]::GetTempPath()) 'clide-sessions'
 Register-EngineEvent PowerShell.Exiting -SupportEvent -Action {
@@ -62,7 +66,7 @@ function clide {
 
     # ---- parse flags ----
     $model = ""; $effort = "low"; $forceMode = ""; $inspect = $false
-    $explain = $false; $autoyes = $false; $once = $false; $newsess = $false
+    $explain = $false; $autoyes = $false; $once = $false; $newsess = $false; $verbose = 0
     $promptParts = @()
     for ($i = 0; $i -lt $Rest.Count; $i++) {
         switch ($Rest[$i]) {
@@ -77,6 +81,8 @@ function clide {
             '-y'  { $autoyes = $true }
             { $_ -in '-1', '--once' } { $once = $true }
             { $_ -in '-n', '--new' }  { $newsess = $true }
+            '-v'  { if ($verbose -lt 1) { $verbose = 1 } }
+            '-vv' { $verbose = 2 }
             { $_ -in '-h', '--help' } {
                 Write-Host "${A}clide${R} — turn a prompt into a shell command"
                 Write-Host "  ${D}clide <prompt>${R}        auto: passive→suggest (inject), active→run (confirm)"
@@ -87,6 +93,7 @@ function clide {
                 Write-Host "  ${D}-e | -y${R}               explain | auto-yes (destructive still gated)"
                 Write-Host "  ${D}-1 | --once${R}           stateless one-off (ignore tab memory)"
                 Write-Host "  ${D}-n | --new${R}            fresh tab session, then run (bare -n resets)"
+                Write-Host "  ${D}-v | -vv${R}              verbose | very verbose (diagnose failures)"
                 Write-Host "  ${D}clide code${R}            elevate tab context into interactive claude"
                 Write-Host "  ${D}… | clide …${R}           pipe output/errors in as context"
                 return
@@ -199,14 +206,34 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
         $cargs += @('--disallowedTools', 'Bash Edit Write')
     }
 
+    # ---- verbose diagnostics ----
+    if ($verbose -ge 1) {
+        $fm = if ($forceMode) { $forceMode } else { 'auto' }
+        [Console]::Error.WriteLine("${D}clide -v: model=$model effort=$effort mode=$fm session=$sidMode inspect=$inspect${R}")
+    }
+
+    # run claude capturing stdout + stderr + exit code (stderr is what diagnoses failures)
+    $invoke = {
+        param($a)
+        $raw  = & claude @a 2>&1
+        $errs = ($raw | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }) -join "`n"
+        $outs = ($raw | Where-Object { -not ($_ -is [System.Management.Automation.ErrorRecord]) } | ForEach-Object { [string]$_ }) -join "`n"
+        [pscustomobject]@{ Out = $outs; Err = $errs; Code = $LASTEXITCODE }
+    }
+
     # ---- call claude (spinner via job; sync fallback), retrying once if a resume is lost ----
-    $out = $null; $cancelled = $false
+    $out = $null; $stderrText = ''; $code = 0; $cancelled = $false
     for ($attempt = 0; $attempt -lt 2; $attempt++) {
         $sargs = $cargs
         if ($sidMode -eq 'new')        { $sargs = $cargs + @('--session-id', $sid) }
         elseif ($sidMode -eq 'resume') { $sargs = $cargs + @('--resume', $sid) }
+        if ($verbose -ge 2 -and $attempt -eq 0) {
+            [Console]::Error.WriteLine("${D}clide -vv: claude $($sargs -join ' ')${R}")
+            [Console]::Error.WriteLine("${D}clide -vv: --- prompt ---`n$fullPrompt${R}")
+            [Console]::Error.WriteLine("${D}clide -vv: --- system ---`n$sys${R}")
+        }
         try {
-            $job = Start-Job -ScriptBlock { param($a) & claude @a 2>$null } -ArgumentList (, $sargs)
+            $job = Start-Job -ScriptBlock $invoke -ArgumentList (, $sargs)
             if ($tty) {
                 $frames = '·','✻','✽','✶','✳','✢'; $k = 0
                 [Console]::Write("$e[?25l")
@@ -221,11 +248,14 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
             } else {
                 Wait-Job $job | Out-Null
             }
-            if (-not $cancelled) { $out = (Receive-Job $job) -join "`n" }
+            if (-not $cancelled) { $res = Receive-Job $job; if ($res) { $out = $res.Out; $stderrText = $res.Err; $code = [int]$res.Code } }
             Remove-Job $job -Force
         } catch {
-            if (-not $cancelled) { $out = (& claude @sargs 2>$null) -join "`n" }
+            if (-not $cancelled) { $res = & $invoke $sargs; $out = $res.Out; $stderrText = $res.Err; $code = [int]$res.Code }
         }
+        if ($verbose -ge 1) { [Console]::Error.WriteLine("${D}clide -v: claude exit=$code, out=$(($out + '').Length)ch, err=$(($stderrText + '').Length)ch${R}") }
+        if ($verbose -ge 1 -and $stderrText) { [Console]::Error.WriteLine("${D}clide -v: --- claude stderr ---`n$stderrText${R}") }
+        if ($verbose -ge 2 -and $out)        { [Console]::Error.WriteLine("${D}clide -vv: --- raw output ---`n$out${R}") }
         if ($cancelled -or $out) { break }
         if ($sidMode -eq 'resume') {                 # lost session → rotate + retry
             $sid = [guid]::NewGuid().ToString(); $sidMode = 'new'; $turns = 0
@@ -238,7 +268,13 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
         Write-Host "${D}✗ interrupted${R}"
         return
     }
-    if (-not $out) { Write-Host "${ER}✗${R} ${D}clide:${R} no response from claude"; return }
+    if (-not $out) {
+        $why = if ($code) { " (claude exited $code)" } else { "" }
+        Write-Host "${ER}✗${R} ${D}clide:${R} no response from claude$why"
+        if ($stderrText)        { Write-Host "${D}$stderrText${R}" }
+        elseif ($verbose -lt 1) { Write-Host "${D}(re-run with -v or -vv to see why)${R}" }
+        return
+    }
 
     # ---- persist tab session (unless stateless) ----
     if (-not $once -and $sid) {

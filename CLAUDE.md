@@ -24,7 +24,8 @@ shims. The shims own only the shell-specific bits; everything else lives in core
   directly** — shims invoke it as `command sh "$core"` and pass everything via `CLIDE_*` env vars
   (`CLIDE_PROMPT`, `CLIDE_MODEL`, `CLIDE_EFFORT`, `CLIDE_FORCE_MODE`, `CLIDE_INSPECT`, `CLIDE_EXPLAIN`,
   `CLIDE_LAST_CMD`, `CLIDE_LAST_RC`, `CLIDE_SID`, `CLIDE_SID_MODE`, `CLIDE_INTERRUPTED`,
-  `CLIDE_QUIET_ERR`). Piped stdin flows through to core as terminal-output context.
+  `CLIDE_QUIET_ERR`, `CLIDE_SHELL`, `CLIDE_VERBOSE`). Piped stdin flows through to core as
+  terminal-output context.
 - `clide.zsh` / `clide.bash` — shims. Capture context (`$?` + previous command), manage per-tab
   session state, call core, then render: **suggest** → inject the command into the input buffer;
   **run** → print + confirm + `eval`. They locate core next to themselves (`${(%):-%x}` /
@@ -71,6 +72,15 @@ uses `PSConsoleReadLine::Insert`.
   fallback. Color is ANSI 256 #174 (Claude orange); frames are `· ✻ ✽ ✶ ✳ ✢`.
 - **Fast defaults**: `haiku` + `--effort low`. There is no `/fast` in headless `claude -p` (Opus-only,
   interactive-only) — don't add it.
+- **claude's stderr is captured, not discarded.** Core redirects `claude 2>"$tmperr"` (not
+  `/dev/null`); the rc≠0 path prints it, and `-v`/`-vv` surface it. `clide.ps1` does the same via
+  `2>&1` + filtering `ErrorRecord`s out of the pipeline. This is what makes "no response from claude"
+  diagnosable (usually an unsupported flag on an older `claude`).
+- **Verbose (`-v`/`-vv`, `CLIDE_VERBOSE=0|1|2`) must go to stderr only** — stdout carries the decision
+  JSON the shim parses. `-v` = plan + exit code + claude stderr; `-vv` adds exact args, prompt, system
+  prompt, raw output.
+- **`clide.ps1` sets `[Console]::OutputEncoding` to UTF-8 (no BOM) at load** so Windows PowerShell 5.1
+  renders the spinner frames/glyphs instead of `?` (its console defaults to the OEM codepage).
 
 ## Working on this
 

@@ -94,6 +94,7 @@ also needs `jq` and `perl` (both ship on macOS and most Linux). The PowerShell v
 | `-y` | auto-yes in run mode (destructive commands still gated) |
 | `-1` / `--once` | stateless one-off — ignore this tab's memory |
 | `-n` / `--new` | start a fresh tab session, then run (bare `clide -n` just resets) |
+| `-v` / `-vv` | verbose / very verbose — print the resolved plan, claude's exit code & stderr (`-vv` adds the exact args, prompt, system prompt, and raw output) to diagnose failures |
 | `clide code` | elevate this tab's context into an interactive Claude Code session |
 | `cmd 2>&1 \| clide …` | pipe output/errors in as context |
 

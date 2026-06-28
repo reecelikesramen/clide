@@ -30,6 +30,10 @@ fi
 
 err() { [ "${CLIDE_QUIET_ERR:-0}" = 1 ] && return 0; printf '%s✗%s %sclide:%s %s\n' "$C_ERR" "$C_RST" "$C_DIM" "$C_RST" "$*" >&2; }
 
+# verbose diagnostics → stderr only (stdout carries the decision JSON)
+verbose=${CLIDE_VERBOSE:-0}
+vlog() { _l=$1; shift; if [ "$verbose" -ge "$_l" ]; then printf '%sclide -v: %s%s\n' "$C_DIM" "$*" "$C_RST" >&2; fi; }
+
 # ---- redaction: strip obvious secrets before anything leaves the machine ----
 redact() {
   perl -pe '
@@ -140,14 +144,24 @@ else
   set -- "$@" --disallowedTools "Bash Edit Write"
 fi
 
+# ---- verbose diagnostics: plan (-v) + exact claude args & prompts (-vv) ----
+vlog 1 "model=$model effort=${effort:-none} force=${CLIDE_FORCE_MODE:-auto} session=${CLIDE_SID_MODE:-off} inspect=${CLIDE_INSPECT:-0}"
+if [ "$verbose" -ge 2 ]; then
+  printf '%sclide -vv: claude' "$C_DIM" >&2
+  for _a in "$@"; do printf ' %s' "$_a" >&2; done
+  printf '%s\n' "$C_RST" >&2
+  printf '%sclide -vv: --- prompt ---\n%s%s\n' "$C_DIM" "$full_prompt" "$C_RST" >&2
+fi
+
 # ---- call claude, with a spinner while it thinks (Esc or Ctrl-C cancels) ----
 tmp=$(mktemp 2>/dev/null) || tmp=$(mktemp -t clide) || { err "mktemp failed"; printf '{"mode":"error"}\n'; exit 1; }
+tmperr=$(mktemp 2>/dev/null) || tmperr=$(mktemp -t clideerr) || tmperr=/dev/null
 ESC=$(printf '\033')
 stty_save=; cursor_hidden=0; cancelled=0
 _cleanup() {
   [ -n "$stty_save" ] && stty "$stty_save" </dev/tty 2>/dev/null
   [ "$cursor_hidden" = 1 ] && printf '\033[?25h' >&2
-  rm -f "$tmp" 2>/dev/null
+  rm -f "$tmp" "$tmperr" 2>/dev/null
 }
 trap _cleanup EXIT
 
@@ -157,7 +171,7 @@ if [ -t 2 ]; then
     stty_save=$(stty -g </dev/tty 2>/dev/null) && { stty -icanon -echo min 0 time 1 </dev/tty 2>/dev/null && have_tty=1; }
   fi
   printf '\033[?25l' >&2; cursor_hidden=1
-  claude "$@" </dev/null >"$tmp" 2>/dev/null &
+  claude "$@" </dev/null >"$tmp" 2>"$tmperr" &
   cpid=$!
   trap 'cancelled=1; kill $cpid 2>/dev/null' INT
   i=1
@@ -178,7 +192,7 @@ if [ -t 2 ]; then
   printf '\r\033[K\033[?25h' >&2; cursor_hidden=0
   wait "$cpid" 2>/dev/null; rc=$?
 else
-  claude "$@" </dev/null >"$tmp" 2>/dev/null
+  claude "$@" </dev/null >"$tmp" 2>"$tmperr"
   rc=$?
 fi
 
@@ -189,10 +203,15 @@ if [ "$cancelled" = 1 ]; then
 fi
 
 out=$(cat "$tmp")
+stderrtxt=$(cat "$tmperr" 2>/dev/null)
+vlog 1 "claude exit=$rc"
+[ "$verbose" -ge 1 ] && [ -n "$stderrtxt" ] && printf '%sclide -v: --- claude stderr ---\n%s%s\n' "$C_DIM" "$stderrtxt" "$C_RST" >&2
+[ "$verbose" -ge 2 ] && printf '%sclide -vv: --- raw output ---\n%s%s\n' "$C_DIM" "$out" "$C_RST" >&2
 
 if [ "$rc" -ne 0 ]; then
   err "claude exited $rc"
-  [ -n "$out" ] && [ "${CLIDE_QUIET_ERR:-0}" != 1 ] && printf '%s%s%s\n' "$C_DIM" "$out" "$C_RST" >&2
+  detail=$stderrtxt; [ -n "$detail" ] || detail=$out
+  [ -n "$detail" ] && [ "${CLIDE_QUIET_ERR:-0}" != 1 ] && printf '%s%s%s\n' "$C_DIM" "$detail" "$C_RST" >&2
   printf '{"mode":"error"}\n'
   exit "$rc"
 fi

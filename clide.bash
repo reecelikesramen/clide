@@ -56,7 +56,7 @@ clide() {
   fi
 
   # ---- flags ----
-  local model="" effort="" force_mode="" inspect=0 explain=0 autoyes=0 once=0 newsess=0
+  local model="" effort="" force_mode="" inspect=0 explain=0 autoyes=0 once=0 newsess=0 verbose=0
   while [[ "$1" == -* ]]; do
     case "$1" in
       -mh) model=haiku;  shift ;;
@@ -70,6 +70,8 @@ clide() {
       -y)  autoyes=1; shift ;;
       -1|--once) once=1; shift ;;
       -n|--new)  newsess=1; shift ;;
+      -v)  (( verbose < 1 )) && verbose=1; shift ;;
+      -vv) verbose=2; shift ;;
       -h|--help)
         printf '%sclide%s — turn a prompt into a shell command\n' "$A" "$R"
         printf '  %sclide <prompt>%s        auto: passive→suggest, active→run (confirm)\n' "$D" "$R"
@@ -80,6 +82,7 @@ clide() {
         printf '  %s-e | -y%s               explain | auto-yes (destructive still gated)\n' "$D" "$R"
         printf '  %s-1 | --once%s           stateless one-off (ignore tab memory)\n' "$D" "$R"
         printf '  %s-n | --new%s            fresh tab session, then run (bare -n resets)\n' "$D" "$R"
+        printf '  %s-v | -vv%s              verbose | very verbose (diagnose failures)\n' "$D" "$R"
         printf '  %sclide code%s            elevate tab context into interactive claude\n' "$D" "$R"
         printf '  %scmd 2>&1 | clide …%s    pipe output/errors in as context\n' "$D" "$R"
         printf '  %ssuggest mode%s: command added to history — press ↑ to edit & run\n' "$D" "$R"
@@ -134,7 +137,7 @@ clide() {
     CLIDE_FORCE_MODE="$force_mode" CLIDE_INSPECT="$inspect" CLIDE_EXPLAIN="$explain" \
     CLIDE_LAST_CMD="$last_cmd" CLIDE_LAST_RC="$_last_rc" CLIDE_INTERRUPTED="$interrupted" \
     CLIDE_SID="$sid" CLIDE_SID_MODE="$sid_mode" CLIDE_QUIET_ERR="$1" \
-    CLIDE_SHELL=bash \
+    CLIDE_SHELL=bash CLIDE_VERBOSE="$verbose" \
     command sh "$core"
   }
 
