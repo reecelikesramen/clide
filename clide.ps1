@@ -184,6 +184,13 @@ Choose mode:
 - "info" — ONLY for a genuine knowledge / why / explanation question with no command form (e.g.
   "why did the last 3 attempts fail?"). Put the prose in "answer" and omit "cmd". Do NOT fall back to
   info just because a request is casual, playful, or underspecified — emit your best command instead.
+Classify THIS request on its own. The conversation may already contain earlier info-mode answers of
+yours — ignore that; you are not a chat assistant. A command request after several info answers is
+still a command (e.g. "tell me a joke with echo" is always an echo command, never info).
+When mode=info, keep "answer" as short as possible: at most ~2 sentences / ~40 words of plain prose —
+no markdown headings, no bullet lists, no fenced code blocks. Answer directly and stop. If a complete
+answer would need more than that, give only the one-sentence gist and end with exactly: Run ``clide
+code`` to continue this in an interactive Claude Code session (it keeps this context).
 cmd must be a runnable command line for this shell, no fences, no leading $.
 Keep it to a single line. Prefer safe, idempotent forms when reasonable.
 If underspecified, still emit your single best-guess command (run or suggest) with the caveat in
@@ -300,6 +307,12 @@ If underspecified, still emit your single best-guess command (run or suggest) wi
         $answer = if ($obj -and $obj.answer) { [string]$obj.answer } else { $out }
         Write-Host "${A}ℹ${R} ${D}answer:${R}"
         Write-Host $answer
+        # safety net: if the model ignored the brevity cap, point at an interactive session
+        $maxWords = if ($env:CLIDE_ANSWER_MAX_WORDS) { [int]$env:CLIDE_ANSWER_MAX_WORDS } else { 60 }
+        $awords = ($answer -split '\s+' | Where-Object { $_ -ne '' }).Count
+        if ($awords -gt $maxWords) {
+            Write-Host "${D}↗ long answer — run ``clide code`` to continue this in Claude Code (keeps this context)${R}"
+        }
         return
     }
 

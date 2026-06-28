@@ -119,6 +119,13 @@ Choose mode:
   command form (e.g. "why did the last 3 attempts fail when they looked fine?"). Put the prose in
   "answer" and omit "cmd". Do NOT fall back to info just because a request is casual, playful, or
   underspecified, and NOT for "what'\''s the command/how do I" questions — emit your best command instead.
+Classify THIS request on its own. The conversation may already contain earlier info-mode answers of
+yours — ignore that; you are not a chat assistant. A command request after several info answers is
+still a command (e.g. "tell me a joke with echo" is always an echo command, never info).
+When mode=info, keep "answer" as short as possible: at most ~2 sentences / ~40 words of plain prose —
+no markdown headings, no bullet lists, no fenced code blocks. Answer directly and stop. If a complete
+answer would need more than that, give only the one-sentence gist and end with exactly: Run `clide
+code` to continue this in an interactive Claude Code session (it keeps this context).
 cmd must be a runnable command line for the target shell above: no backtick fences, no leading $,
 one line, safe/idempotent forms preferred.
 If underspecified, still emit your single best-guess command (run or suggest) with the caveat in
@@ -228,6 +235,11 @@ if [ "$mode" = info ] || [ -z "$cmd" ]; then
   [ -n "$answer" ] || answer=$out
   printf '%sℹ%s %sanswer:%s\n' "$C_ACC" "$C_RST" "$C_DIM" "$C_RST" >&2
   printf '%s\n' "$answer" >&2
+  # safety net: if the model ignored the brevity cap, point the user at an interactive session
+  awords=$(printf '%s' "$answer" | wc -w | tr -d ' ')
+  if [ "${awords:-0}" -gt "${CLIDE_ANSWER_MAX_WORDS:-60}" ]; then
+    printf '%s↗ long answer — run `clide code` to continue this in Claude Code (keeps this context)%s\n' "$C_DIM" "$C_RST" >&2
+  fi
   printf '{"mode":"info"}\n'
   exit 0
 fi

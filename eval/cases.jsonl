@@ -9,3 +9,5 @@
 {"prompt":"show me the running docker containers","mode":"suggest","cmd_re":"docker ps","desc":"informational -> command"}
 {"prompt":"stage everything and commit with message wip","mode":"run","cmd_re":"git add .*git commit|git commit","desc":"directive -> run"}
 {"prompt":"remember the number 42","mode":"info","desc":"non-actionable -> --json-schema prose-leak must degrade to info, not a junk command"}
+{"prompt":"why did the last 3 attempts fail when they looked fine before?","mode":"info","answer_max":40,"desc":"info answer must be terse (<=40 words), not a markdown wall"}
+{"turns":[{"prompt":"help me use clide","mode":"info"},{"prompt":"explain how clide works end to end","mode":"info"},{"prompt":"tell me a joke with echo","mode":"run|suggest","cmd_re":"^echo "}],"desc":"after two info answers, a command request must still be a command (multi-turn drift)"}
