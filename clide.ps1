@@ -158,27 +158,39 @@ function clide {
         "This is $osName. ``$elev`` is installed for elevation. For any command needing administrator/root rights, prefix it with ``$elev `` (e.g. ``$elev Stop-Service Spooler``, ``$elev netsh ...``). NEVER claim you cannot elevate or run privileged commands — emit the ``$elev``-prefixed command."
     } else { "This is $osName. Prefer native PowerShell cmdlets." }
     $sys = @"
-You translate a user request into ONE shell command for their terminal.
+You translate the user request into ONE shell command for their terminal. Producing a command is
+your default and your job: treat almost every request as actionable, including playful ones
+("tell a joke with echo" -> an echo/Write-Output command) and edits ("fix that line" -> a one-liner).
 $elevClause
 You may receive a <context> block with the previous command, its exit code, and piped output/errors;
 use it to resolve "that"/"this"/"the error" and to fix failures. Never echo secrets from context.
-Output EXACTLY one line of compact JSON and nothing else (no markdown, no fences, no prose):
-{"mode":"run|suggest","cmd":"<single command or one-liner>","note":"<<=8 word why, optional>"}
+Your reply is validated against a JSON schema with fields: mode (run|suggest|info), cmd, answer, note.
+Put the command in "cmd" (omit only when mode=info); put info-mode prose in "answer"; "note" is an
+optional <=8 word why.
 $explainClause
-Classify mode:
-- "run" when the request is imperative / "do it for me" / fix / delete / create / clean.
-- "suggest" when informational: "what is the command", "how do I", explain.
-- When unsure, choose "suggest".
+Choose mode:
+- "run" — you can produce a COMPLETE, unambiguous command AND the request is a directive to act
+  (fix, delete, create, clean, restart, "do X for me"). clide runs it after a y/N confirm.
+- "suggest" — you have a command but the user should review or edit it first: placeholders / paths /
+  names to fill in, exploratory, or ambiguous args. It lands in their editable buffer; they press
+  Enter. When torn between run and suggest, choose suggest.
+- "info" — ONLY for a genuine knowledge / why / explanation question with no command form (e.g.
+  "why did the last 3 attempts fail?"). Put the prose in "answer" and omit "cmd". Do NOT fall back to
+  info just because a request is casual, playful, or underspecified — emit your best command instead.
 cmd must be a runnable command line for this shell, no fences, no leading $.
 Keep it to a single line. Prefer safe, idempotent forms when reasonable.
-ALWAYS return the JSON object, even with incomplete information. NEVER reply with prose, questions,
-apologies, or explanations outside the JSON. If underspecified, emit your single best-guess command
-and put the caveat in "note". Output nothing but the one JSON line.
+If underspecified, still emit your single best-guess command (run or suggest) with the caveat in
+"note" — never refuse, never ask questions, never apologize. Output nothing but the one JSON line.
 "@
 
     # ---- build claude args ----
+    # JSON Schema enforces the reply shape at the claude level (StructuredOutput tool).
+    $schema = '{"type":"object","properties":{"mode":{"type":"string","enum":["run","suggest","info"]},"cmd":{"type":"string"},"answer":{"type":"string"},"note":{"type":"string"},"explain":{"type":"string"}},"required":["mode"]}'
+    $maxUsd = if ($env:CLIDE_MAX_USD) { $env:CLIDE_MAX_USD } else { '0.50' }
+    # --safe-mode: hermetic translation (no user CLAUDE.md / hooks / skills / MCP leaking in).
     $cargs = @('-p', $fullPrompt, '--model', $model, '--output-format', 'text',
-               '--append-system-prompt', $sys, '--exclude-dynamic-system-prompt-sections')
+               '--append-system-prompt', $sys, '--exclude-dynamic-system-prompt-sections',
+               '--safe-mode', '--json-schema', $schema, '--max-budget-usd', $maxUsd)
     if ($effort) { $cargs += @('--effort', $effort) }
     if ($inspect) {
         $cargs += @('--allowedTools', 'Bash(git status:*) Bash(git log:*) Bash(git branch:*) Bash(git remote:*)',
@@ -239,9 +251,10 @@ and put the caveat in "note". Output nothing but the one JSON line.
     $obj = $null
     if ($m.Success) { try { $obj = $m.Value | ConvertFrom-Json } catch { $obj = $null } }
 
-    if (-not $obj -or -not $obj.cmd) {
-        Write-Host "${A}ℹ${R} ${D}no command — answer:${R}"
-        Write-Host $out
+    if (-not $obj -or $obj.mode -eq 'info' -or -not $obj.cmd) {
+        $answer = if ($obj -and $obj.answer) { [string]$obj.answer } else { $out }
+        Write-Host "${A}ℹ${R} ${D}answer:${R}"
+        Write-Host $answer
         return
     }
 

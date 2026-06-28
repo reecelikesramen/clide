@@ -138,6 +138,7 @@ clide() {
     CLIDE_FORCE_MODE="$force_mode" CLIDE_INSPECT="$inspect" CLIDE_EXPLAIN="$explain" \
     CLIDE_LAST_CMD="$last_cmd" CLIDE_LAST_RC="$_last_rc" CLIDE_INTERRUPTED="$interrupted" \
     CLIDE_SID="$sid" CLIDE_SID_MODE="$sid_mode" CLIDE_QUIET_ERR="$1" \
+    CLIDE_SHELL=zsh \
     command sh "$core"
   }
 
@@ -186,7 +187,7 @@ clide() {
   (( danger )) && print -- "${E}⚠ DESTRUCTIVE${R} ${D}— review carefully${R}"
 
   if [[ "$mode" == suggest ]]; then
-    print -u2 -- "${OK}↳${R} ${D}ready — edit & press Enter${R}"
+    print -u2 -- "${OK}↳${R} ${D}review/edit, then press Enter to run${R}"
     print -z -- "$cmd"
   else
     print -- "${CMD}\$ ${cmd}${R}"

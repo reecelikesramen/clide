@@ -82,26 +82,52 @@ command -v sudo >/dev/null 2>&1 && elev=sudo
 elev_clause=
 [ -n "$elev" ] && elev_clause="\`$elev\` is available for elevation. For any command needing root/admin, prefix it with \`$elev \` (e.g. \`$elev systemctl restart nginx\`). NEVER claim you cannot elevate or run privileged commands — emit the $elev-prefixed command."
 
-SYS='You translate a user request into ONE shell command for their terminal.
+# detect the target OS/shell so the model picks portable, platform-correct commands
+os=$(uname -s 2>/dev/null)
+case "$os" in
+  Darwin) os_clause="Target OS: macOS (BSD userland). For in-place edits use \`sed -i ''\` (BSD sed); GNU-only flags are unavailable." ;;
+  Linux)  os_clause="Target OS: Linux (GNU userland). For in-place edits use \`sed -i\` (GNU sed)." ;;
+  *)      os_clause="Target OS: ${os:-unknown}." ;;
+esac
+[ -n "$CLIDE_SHELL" ] && os_clause="$os_clause Target shell: $CLIDE_SHELL."
+
+SYS='You translate the user request into ONE shell command for their terminal. Producing a command is
+your default and your job: treat almost every request as actionable, including playful ones
+("tell a joke with echo" -> an echo command) and edits ("fix that line" -> a sed/printf/tee one-liner).
 '"$elev_clause"'
+'"$os_clause"'
 You may receive a <context> block with the previous command, its exit code, and piped output/errors;
 use it to resolve "that"/"this"/"the error" and to fix failures. Never echo secrets from context.
-Output EXACTLY one line of compact JSON and nothing else (no markdown, no fences, no prose):
-{"mode":"run|suggest","cmd":"<single shell command or one-liner>","note":"<<=8 word why, optional>"}
+Your reply is validated against a JSON schema with fields: mode (run|suggest|info), cmd, answer, note.
+Put the command in "cmd" (omit only when mode=info); put info-mode prose in "answer"; "note" is an
+optional <=8 word why.
 '"$explain_clause"'
-Classify mode:
-- "run" when the request is imperative / "do it for me" / fix / rebase / delete / create / clean.
-- "suggest" when informational: "what is the command", "how do I", explain.
-- When unsure, choose "suggest".
-cmd must be a runnable POSIX/zsh command line, no backtick fences, no leading $.
-Keep it to a single line. Prefer safe, idempotent forms when reasonable.
-ALWAYS return the JSON object, even with incomplete information. NEVER reply with prose, questions,
-apologies, or explanations outside the JSON. If underspecified, emit your single best-guess command
-and put the caveat in "note". Output nothing but the one JSON line.'
+Choose mode:
+- "run" — you can produce a COMPLETE, unambiguous command AND the request is a directive to act
+  (fix, delete, rebase, create, clean, restart, "do X for me"). clide runs it after a y/N confirm,
+  so the command must be safe to execute verbatim.
+- "suggest" — anything that isn'\''t a clear-cut run. Read-only inspection/listing (ls, find,
+  git status/log/branch, ps, docker ps, df, du, grep) is exploratory and ALWAYS suggest, even when
+  the command is complete. Also suggest when the command has placeholders / paths / names to fill in,
+  or the args are ambiguous. It lands in their editable buffer and they press Enter. A request phrased
+  as "what is the command to X" or "how do I X" still gets a command here — never info.
+- "info" — ONLY when the request is a genuine knowledge / why / explanation question that has no
+  command form (e.g. "why did the last 3 attempts fail when they looked fine?"). Put the prose in
+  "answer" and omit "cmd". Do NOT fall back to info just because a request is casual, playful, or
+  underspecified, and NOT for "what'\''s the command/how do I" questions — emit your best command instead.
+cmd must be a runnable command line for the target shell above: no backtick fences, no leading $,
+one line, safe/idempotent forms preferred.
+If underspecified, still emit your single best-guess command (run or suggest) with the caveat in
+"note" — never refuse, never ask questions, never apologize. Output nothing but the one JSON line.'
 
 # ---- build claude args ----
+# --json-schema enforces the reply shape at the claude level (StructuredOutput tool); the prose->info
+# fallback below still covers the case where the model emits prose instead of a tool call.
+SCHEMA='{"type":"object","properties":{"mode":{"type":"string","enum":["run","suggest","info"]},"cmd":{"type":"string"},"answer":{"type":"string"},"note":{"type":"string"},"explain":{"type":"string"}},"required":["mode"]}'
+# --safe-mode: hermetic translation — no user CLAUDE.md / hooks / skills / MCP can leak in or skew it.
 set -- -p "$full_prompt" --model "$model" --output-format text \
-       --append-system-prompt "$SYS" --exclude-dynamic-system-prompt-sections
+       --append-system-prompt "$SYS" --exclude-dynamic-system-prompt-sections \
+       --safe-mode --json-schema "$SCHEMA" --max-budget-usd "${CLIDE_MAX_USD:-0.50}"
 [ -n "$effort" ] && set -- "$@" --effort "$effort"
 case "${CLIDE_SID_MODE:-off}" in
   new)    [ -n "$CLIDE_SID" ] && set -- "$@" --session-id "$CLIDE_SID" ;;
@@ -174,17 +200,19 @@ fi
 # ---- parse the model's JSON (grab first {...}, tolerate stray text) ----
 json=$(printf '%s' "$out" | sed -n 's/^[^{]*\({.*}\)[^}]*$/\1/p' | head -1)
 [ -n "$json" ] || json=$out
+mode=$(printf '%s' "$json" | jq -r '.mode // "suggest"' 2>/dev/null)
 cmd=$(printf '%s' "$json" | jq -r '.cmd // empty' 2>/dev/null)
 
-if [ -z "$cmd" ]; then
-  # claude answered in prose — show it as an informational answer; shim no-ops
-  printf '%sℹ%s %sno command — answer:%s\n' "$C_ACC" "$C_RST" "$C_DIM" "$C_RST" >&2
-  printf '%s\n' "$out" >&2
+if [ "$mode" = info ] || [ -z "$cmd" ]; then
+  # informational answer (explicit info mode, or model went off-contract); shim no-ops
+  answer=$(printf '%s' "$json" | jq -r '.answer // empty' 2>/dev/null)
+  [ -n "$answer" ] || answer=$out
+  printf '%sℹ%s %sanswer:%s\n' "$C_ACC" "$C_RST" "$C_DIM" "$C_RST" >&2
+  printf '%s\n' "$answer" >&2
   printf '{"mode":"info"}\n'
   exit 0
 fi
 
-mode=$(printf '%s' "$json" | jq -r '.mode // "suggest"' 2>/dev/null)
 note=$(printf '%s' "$json" | jq -r '.note // empty' 2>/dev/null)
 explain=$(printf '%s' "$json" | jq -r '.explain // empty' 2>/dev/null)
 [ -n "$CLIDE_FORCE_MODE" ] && mode=$CLIDE_FORCE_MODE

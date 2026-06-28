@@ -29,13 +29,21 @@ PowerShell.
 
 ## How it works
 
-clide figures out what you actually want and returns one line of JSON behind the scenes:
+clide is **command-first**: almost every request becomes a command (yes, even
+`clide tell me a joke with echo`). It returns one line of JSON behind the scenes and picks one of
+three modes:
 
-- **a question** ("what's the command to…", "how do I…") → answers it;
-- **a command** → **suggest** mode: drops the command into your shell's input buffer (zsh/pwsh) or
-  history (bash), editable — you press Enter to run it;
-- **do it for me** ("fix…", "delete…", "rebase…") → **run** mode: prints the command and asks `[y/N]`
-  before executing.
+- **suggest** — you should review or edit before running (paths/names to fill in, exploratory, or
+  ambiguous args). The command drops into your shell's input buffer (zsh/pwsh) or history (bash),
+  editable — you press Enter to run it. *This is the "you take the wheel" mode.*
+- **run** — the command is complete and the request is a directive ("fix…", "delete…", "rebase…").
+  clide prints it and asks `[y/N]`, then executes it for you. *This is the "do it for me" mode.*
+- **info** — only for a genuine why/knowledge question with no command form (e.g. *"why did the last
+  3 attempts fail when they looked fine?"*). clide answers in prose and does nothing else.
+
+The split between **suggest** and **run** is *edit-vs-execute*: suggest hands you the command to
+tweak; run executes it on your confirmation. clide also knows your OS (macOS/Linux) and shell, so
+edits use the right tools (e.g. BSD vs GNU `sed -i`).
 
 It's not flying blind:
 
@@ -135,6 +143,9 @@ effort are the real latency levers.
   guarantee** — don't pipe in things you wouldn't want sent.
 - No shell-history scraping, no scrollback capture — only the single previous command and what you
   explicitly pipe.
+- **Hermetic translation** — the headless `claude` call runs in `--safe-mode`, so your personal Claude
+  Code config (global `CLAUDE.md`, hooks, skills, MCP servers) can't leak into or skew the command it
+  produces. Spend per call is capped (`--max-budget-usd`, default `$0.50`; override `CLIDE_MAX_USD`).
 - **Tab memory** keeps a Claude session per tab; the conversation lives in Claude Code's local
   session store and is cleared on tab close / reboot. Use `clide -1` for a stateless call.
 - **Destructive guard:** commands like `rm -rf`, `git push --force`, `dd`, `mkfs` are flagged; run mode
@@ -162,6 +173,22 @@ clide.ps1       standalone PowerShell version
 install.sh      zsh/bash installer (shell-detecting)
 install.ps1     PowerShell installer
 ```
+
+## Developing — prompt eval
+
+The classifier (command-first bias, run vs suggest vs info) lives entirely in the system prompt in
+`clide-core.sh`. To keep it honest there's an offline scorer:
+
+```sh
+sh eval/run.sh                 # defaults to haiku + --effort low (what ships)
+sh eval/run.sh --runs 5        # more samples per case to smooth model nondeterminism
+sh eval/run.sh --model sonnet --effort medium   # is a miss a prompt problem or a model problem?
+```
+
+It runs each case in `eval/cases.jsonl` against the real core and checks the emitted mode (and a
+regex on the command) against expectations, printing a per-case ✓/✗ and an aggregate score. It exits
+non-zero when the score drops below `--min` (default 0.8), so the loop is: edit the prompt → run →
+watch the number. Add a case whenever clide misclassifies something in the wild.
 
 ## License
 

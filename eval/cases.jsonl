@@ -1,0 +1,11 @@
+{"prompt":"use echo to tell a joke","mode":"run|suggest","cmd_re":"^echo ","desc":"playful -> command, not prose"}
+{"prompt":"tell me a joke with echo","mode":"run|suggest","cmd_re":"^echo ","desc":"playful -> command, not prose"}
+{"prompt":"fix that line","mode":"run|suggest","cmd_re":"sed|perl|awk|tee","piped":"app.py:12: undefined name \"reqeusts\" (did you mean \"requests\"?)","desc":"edit w/ error context -> coerced to a patch command"}
+{"prompt":"why did the last 3 attempts fail when they looked fine before?","mode":"info","desc":"genuine why-question -> prose"}
+{"prompt":"list branches by last commit date","mode":"suggest","cmd_re":"git .*branch","desc":"exploratory -> suggest"}
+{"prompt":"undo my last commit but keep my changes","mode":"run","cmd_re":"git reset","desc":"directive -> run (soft or mixed both keep changes)"}
+{"prompt":"delete all .pyc files here","mode":"run","cmd_re":"find .*\\.pyc|rm","desc":"directive -> run"}
+{"prompt":"what's the command to see disk usage","mode":"suggest","cmd_re":"df|du","desc":"how-do-I -> still a command (suggest), not prose"}
+{"prompt":"show me the running docker containers","mode":"suggest","cmd_re":"docker ps","desc":"informational -> command"}
+{"prompt":"stage everything and commit with message wip","mode":"run","cmd_re":"git add .*git commit|git commit","desc":"directive -> run"}
+{"prompt":"remember the number 42","mode":"info","desc":"non-actionable -> --json-schema prose-leak must degrade to info, not a junk command"}

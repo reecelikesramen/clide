@@ -134,6 +134,7 @@ clide() {
     CLIDE_FORCE_MODE="$force_mode" CLIDE_INSPECT="$inspect" CLIDE_EXPLAIN="$explain" \
     CLIDE_LAST_CMD="$last_cmd" CLIDE_LAST_RC="$_last_rc" CLIDE_INTERRUPTED="$interrupted" \
     CLIDE_SID="$sid" CLIDE_SID_MODE="$sid_mode" CLIDE_QUIET_ERR="$1" \
+    CLIDE_SHELL=bash \
     command sh "$core"
   }
 
