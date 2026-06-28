@@ -62,7 +62,12 @@ if (-not $haveSudo) {
 # ---- install file ----
 New-Item -ItemType Directory -Path $Dir -Force | Out-Null
 Say "downloading clide.ps1 from $BaseUrl"
-Invoke-WebRequest -Uri "$BaseUrl/clide.ps1" -OutFile $Target -UseBasicParsing
+# Fetch as text and re-write WITH a UTF-8 BOM. Windows PowerShell 5.1 decodes a BOM-less script as
+# Windows-1252, which mangles clide.ps1's non-ASCII glyphs into smart quotes and breaks parsing.
+$content = (Invoke-WebRequest -Uri "$BaseUrl/clide.ps1" -UseBasicParsing).Content
+$content = $content.TrimStart([char]0xFEFF)               # drop any leading BOM char so we don't double it
+$utf8Bom = New-Object System.Text.UTF8Encoding $true      # $true = emit BOM
+[System.IO.File]::WriteAllText($Target, $content, $utf8Bom)
 
 # ---- wire into $PROFILE (idempotent) ----
 $profileText = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
@@ -73,4 +78,6 @@ if ($profileText -and $profileText.Contains($MarkBeg)) {
     Say "added dot-source line to $PROFILE"
 }
 
-Say "done — clide installed. Open a new PowerShell and try:  clide list git branches by date"
+. $Target                                                # available immediately in this session
+Say "done — clide installed and ready now. Try:  clide list git branches by date"
+Say "(also added to your `$PROFILE for new sessions.)"

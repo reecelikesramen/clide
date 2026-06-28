@@ -110,4 +110,6 @@ else
 fi
 
 say "done — clide installed for $SH."
-say "open a new shell (or: source \"$DIR/$SHIM\") and try:  clide list git branches by date"
+say "to use it in THIS shell now, run:"
+say "  source \"$DIR/$SHIM\""
+say "(new shells pick it up automatically.)"
